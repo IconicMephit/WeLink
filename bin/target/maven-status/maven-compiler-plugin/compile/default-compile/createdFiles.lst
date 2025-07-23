@@ -1,0 +1,5 @@
+com\WeLink\videocall\VideocallApplication.class
+com\WeLink\videocall\user\UserController.class
+com\WeLink\videocall\user\User$UserBuilder.class
+com\WeLink\videocall\user\User.class
+com\WeLink\videocall\user\UserService.class

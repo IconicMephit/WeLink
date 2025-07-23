@@ -1,0 +1,237 @@
+<html>
+  <head>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden; /* Prevent scrollbars */
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        background-color: White;
+      }
+
+      #subtitle {
+        position: absolute;
+        bottom: 140px;
+        left: 5%;
+        width: 60%;
+        text-align: center;
+        font-size: 20px;
+        color: white;
+        z-index: 9999;
+        border-radius: 12px;
+        background-color: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(4px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        padding: 10px;
+        display: none; /* Hidden initially */
+      }
+      #languageSelector {
+        position: absolute;
+        top: 25px;
+        left: 25px;
+        z-index: 10000;
+        border-radius: 12px;
+        background-color: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(4px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        color: #ffffff;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+    <div id="subtitle">Subtitles will appear here...</div>
+    <select id="languageSelector">
+      <option value="hi">Hindi</option>
+      <option value="es">Spanish</option>
+      <option value="fr">French</option>
+    </select>
+  </body>
+
+  <script src="https://unpkg.com/@zegocloud/zego-uikit-prebuilt/zego-uikit-prebuilt.js"></script>
+  <script>
+    function getSelectedLanguages() {
+      const select = document.getElementById("languageSelector");
+      return Array.from(select.selectedOptions).map((option) => option.value);
+    }
+
+    window.onload = function () {
+      function getUrlParams(url) {
+        let urlStr = url.split("?")[1];
+        const urlSearchParams = new URLSearchParams(urlStr);
+        const result = Object.fromEntries(urlSearchParams.entries());
+        return result;
+      }
+
+      const roomID =
+        getUrlParams(window.location.href)["roomID"] ||
+        Math.floor(Math.random() * 10000) + "";
+      const userID = Math.floor(Math.random() * 10000) + "";
+      const userName = "userName" + userID;
+      const appID = 1319304017;
+      const serverSecret = "f9c421b63bb24ec4bb64ed83aaec7231";
+      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
+        appID,
+        serverSecret,
+        roomID,
+        userID,
+        userName
+      );
+
+      const zp = ZegoUIKitPrebuilt.create(kitToken);
+      zp.joinRoom({
+        container: document.querySelector("#root"),
+        sharedLinks: [
+          {
+            name: "Personal link",
+            url:
+              window.location.protocol +
+              "//" +
+              window.location.host +
+              window.location.pathname +
+              "?roomID=" +
+              roomID,
+          },
+        ],
+        scenario: {
+          mode: ZegoUIKitPrebuilt.VideoConference,
+        },
+        turnOnMicrophoneWhenJoining: true,
+        turnOnCameraWhenJoining: true,
+        showMyCameraToggleButton: true,
+        showMyMicrophoneToggleButton: true,
+        showAudioVideoSettingsButton: true,
+        showScreenSharingButton: true,
+        showTextChat: true,
+        showUserList: true,
+        maxUsers: 50,
+        layout: "Sidebar",
+        showLayoutButton: true,
+
+        onJoinRoom: () => {
+          document.getElementById("subtitle").style.display = "block"; // ✅ Show after joining
+          startSubtitles();
+        },
+        onLeaveRoom: () => {
+  document.getElementById("subtitle").style.display = "none"; // Hide subtitles
+},
+
+      });
+
+      function startSubtitles() {
+        const SpeechRecognition =
+          window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+          document.getElementById("subtitle").innerText =
+            "Speech recognition not supported in this browser.";
+          return;
+        }
+
+        // Ensure mic permission
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then(() => {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false; // You can set to true if you want live updates
+            recognition.lang = "en-US";
+
+            recognition.onstart = () => {
+              console.log("Speech recognition started");
+            };
+
+            recognition.onaudiostart = () => {
+              console.log("Audio capturing started");
+            };
+
+            recognition.onresult = function (event) {
+              const transcript =
+                event.results[event.results.length - 1][0].transcript;
+              console.log("Transcript:", transcript);
+
+              const selectedLangs = getSelectedLanguages();
+              if (selectedLangs.length > 0) {
+                translateText(transcript, "en", selectedLangs);
+              } else {
+                document.getElementById("subtitle").innerText =
+                  "Please select at least one language.";
+              }
+
+              // if (transcript && transcript.trim().length > 0) {
+              //   translateText(transcript, "en", ["hi", "es", "fr"]); // translate to Hindi
+              // }
+            };
+
+            recognition.onerror = function (event) {
+              console.error("Speech recognition error:", event.error);
+            };
+
+            recognition.onend = function () {
+              console.warn("Speech recognition ended. Restarting...");
+              setTimeout(() => {
+                try {
+                  recognition.start(); // Restart if stopped
+                } catch (e) {
+                  console.error("Failed to restart recognition:", e);
+                }
+              }, 1000);
+            };
+
+            recognition.start();
+          })
+          .catch((err) => {
+            console.error("Microphone access denied:", err.message);
+            document.getElementById("subtitle").innerText =
+              "Please allow microphone access.";
+          });
+      }
+    };
+    function translateText(text, sourceLang = "en", targetLangs = ["hi"]) {
+      const apiKey = "AIzaSyAL7ghAZd2tmFpN1hR-aoeOSwqmEvF8T1Y"; // Replace with your actual key
+
+      Promise.all(
+        targetLangs.map((lang) => {
+          return fetch(
+            `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                q: text,
+                source: sourceLang,
+                target: lang,
+                format: "text",
+              }),
+            }
+          )
+            .then((response) => response.json())
+            .then((data) => ({
+              lang,
+              text: data.data.translations[0].translatedText,
+            }))
+            .catch((err) => {
+              console.error(`Translation failed for ${lang}:`, err);
+              return { lang, text: "Translation error" };
+            });
+        })
+      ).then((translations) => {
+        const subtitleDiv = document.getElementById("subtitle");
+        subtitleDiv.innerHTML =
+          `<b>Original (EN):</b> ${text}<br>` +
+          translations
+            .map((t) => `<b>${t.lang.toUpperCase()}:</b> ${t.text}`)
+            .join("<br>");
+      });
+    }
+  </script>
+</html>
